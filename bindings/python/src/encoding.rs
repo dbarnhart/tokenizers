@@ -4,7 +4,7 @@ use pyo3::types::*;
 use pyo3::{PyObjectProtocol, PySequenceProtocol};
 use tk::tokenizer::{Offsets, PaddingDirection};
 use tk::utils::truncation::TruncationDirection;
-use numpy::{PyArray1, PyArray2, ToPyArray};
+use numpy::{PyArray1, PyArray2};
 use tokenizers as tk;
 
 use crate::error::{deprecation_warning, PyError};
@@ -134,8 +134,8 @@ impl PyEncoding {
     /// Returns:
     ///     :obj:`np.ndarray[uint32]`: The list of IDs
     #[getter]
-    fn get_ids_numpy<'py>(&self, py: Python<'py>) -> &'py PyArray1<u32> {
-        self.encoding.get_ids().to_pyarray(py)
+    fn get_ids_numpy<'py>(&self, py: Python<'py>) -> &'py PyArray1<i32> {
+        PyArray1::from_exact_iter(py, self.encoding.get_ids().into_iter().map(|&x| x as i32))
     }
 
     /// The generated tokens
@@ -236,16 +236,16 @@ impl PyEncoding {
     /// Returns:
     ///     A :obj:`np.ndarray[usize]` of :obj:`Tuple[int, int]`: The list of offsets
     #[getter]
-    fn get_offsets_numpy<'py>(&self, py: Python<'py>) -> &'py PyArray2<usize> {
+    fn get_offsets_numpy<'py>(&self, py: Python<'py>) -> &'py PyArray2<i64> {
         let offsets = self.encoding.get_offsets();
         // let offsets1: Vec<i64> = offsets.into_iter().flat_map(|x| [x.0 as i64, x.1 as i64] ).collect();
         // let offsets2: Vec<i64> = offsets1.into_iter().flatten().collect();
-        let result = PyArray2::<usize>::new(py, [offsets.len(), 2], false);
+        let result = PyArray2::<i64>::new(py, [offsets.len(), 2], false);
         let mut result_mut = unsafe { result.as_array_mut() };
         for i in 0..offsets.len() {
             unsafe {
-                *result_mut.uget_mut([i, 0]) = offsets[i].0;
-                *result_mut.uget_mut([i, 1]) = offsets[i].1;
+                *result_mut.uget_mut([i, 0]) = offsets[i].0 as i64;
+                *result_mut.uget_mut([i, 1]) = offsets[i].1 as i64;
             }
         }
         result
