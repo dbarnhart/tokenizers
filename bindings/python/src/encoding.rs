@@ -4,6 +4,7 @@ use pyo3::types::*;
 use pyo3::{PyObjectProtocol, PySequenceProtocol};
 use tk::tokenizer::{Offsets, PaddingDirection};
 use tk::utils::truncation::TruncationDirection;
+use numpy::{PyArray1, PyArray2, ToPyArray};
 use tokenizers as tk;
 
 use crate::error::{deprecation_warning, PyError};
@@ -125,6 +126,18 @@ impl PyEncoding {
         self.encoding.get_ids().to_vec()
     }
 
+    /// The generated IDs as a numpy array
+    ///
+    /// The IDs are the main input to a Language Model. They are the token indices,
+    /// the numerical representations that a LM understands.
+    ///
+    /// Returns:
+    ///     :obj:`np.ndarray[uint32]`: The list of IDs
+    #[getter]
+    fn get_ids_numpy<'py>(&self, py: Python<'py>) -> &'py PyArray1<u32> {
+        self.encoding.get_ids().to_pyarray(py)
+    }
+
     /// The generated tokens
     ///
     /// They are the string representation of the IDs.
@@ -213,6 +226,29 @@ impl PyEncoding {
     #[getter]
     fn get_offsets(&self) -> Vec<(usize, usize)> {
         self.encoding.get_offsets().to_vec()
+    }
+
+    /// The offsets associated to each token as a numpy array
+    ///
+    /// These offsets let's you slice the input string, and thus retrieve the original
+    /// part that led to producing the corresponding token.
+    ///
+    /// Returns:
+    ///     A :obj:`np.ndarray[usize]` of :obj:`Tuple[int, int]`: The list of offsets
+    #[getter]
+    fn get_offsets_numpy<'py>(&self, py: Python<'py>) -> &'py PyArray2<usize> {
+        let offsets = self.encoding.get_offsets();
+        // let offsets1: Vec<i64> = offsets.into_iter().flat_map(|x| [x.0 as i64, x.1 as i64] ).collect();
+        // let offsets2: Vec<i64> = offsets1.into_iter().flatten().collect();
+        let result = PyArray2::<usize>::new(py, [offsets.len(), 2], false);
+        let mut result_mut = unsafe { result.as_array_mut() };
+        for i in 0..offsets.len() {
+            unsafe {
+                *result_mut.uget_mut([i, 0]) = offsets[i].0;
+                *result_mut.uget_mut([i, 1]) = offsets[i].1;
+            }
+        }
+        result
     }
 
     /// The special token mask
