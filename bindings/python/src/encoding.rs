@@ -135,7 +135,20 @@ impl PyEncoding {
     ///     :obj:`np.ndarray[uint32]`: The list of IDs
     #[getter]
     fn get_ids_numpy<'py>(&self, py: Python<'py>) -> &'py PyArray1<i32> {
-        PyArray1::from_exact_iter(py, self.encoding.get_ids().into_iter().map(|&x| x as i32))
+        PyArray1::from_iter(py, self.encoding.get_ids().into_iter().map(|&x| x as i32))
+    }
+
+    #[staticmethod]
+    #[text_signature = "(encodings)"]
+    fn merge_ids_numpy<'py>(
+        py: Python<'py>, encodings: Vec<PyRef<PyEncoding>>
+    ) -> &'py PyArray1<i32> {
+        let total_size = encodings.iter().map(|e| e.encoding.len()).sum();
+        let mut result = Vec::<i32>::with_capacity(total_size);
+        result.extend(encodings.iter().flat_map(
+            |x| x.encoding.get_ids().into_iter().map(|&x| x as i32)
+        ));
+        PyArray1::from_vec(py, result)
     }
 
     /// The generated tokens
@@ -238,8 +251,6 @@ impl PyEncoding {
     #[getter]
     fn get_offsets_numpy<'py>(&self, py: Python<'py>) -> &'py PyArray2<i64> {
         let offsets = self.encoding.get_offsets();
-        // let offsets1: Vec<i64> = offsets.into_iter().flat_map(|x| [x.0 as i64, x.1 as i64] ).collect();
-        // let offsets2: Vec<i64> = offsets1.into_iter().flatten().collect();
         let result = PyArray2::<i64>::new(py, [offsets.len(), 2], false);
         let mut result_mut = unsafe { result.as_array_mut() };
         for i in 0..offsets.len() {
@@ -249,6 +260,19 @@ impl PyEncoding {
             }
         }
         result
+    }
+
+    #[staticmethod]
+    #[text_signature = "(encodings)"]
+    fn merge_offsets_numpy<'py>(
+        py: Python<'py>, encodings: Vec<PyRef<PyEncoding>>
+    ) -> &'py PyArray2<i64> {
+        let total_size = encodings.iter().map(|e| e.encoding.len()).sum();
+        let mut result = Vec::<i64>::with_capacity(2 * total_size);
+        result.extend(encodings.iter().flat_map(
+            |x| x.encoding.get_offsets().into_iter().flat_map(|&x| [x.0 as i64, x.1 as i64])
+        ));
+        PyArray1::from_vec(py, result).reshape([total_size, 2]).unwrap()
     }
 
     /// The special token mask
